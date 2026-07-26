@@ -115,28 +115,40 @@ export function parseAmount(raw: string | null | undefined): ParsedAmount | null
  * thousands mark, not a decimal.
  */
 function detectDecimalSeparator(s: string): "." | "," | null {
-  const lastDot = s.lastIndexOf(".");
-  const lastComma = s.lastIndexOf(",");
+  const dotCount = (s.match(/\./g) ?? []).length;
+  const commaCount = (s.match(/,/g) ?? []).length;
 
-  if (lastDot === -1 && lastComma === -1) return null;
+  if (dotCount === 0 && commaCount === 0) return null;
 
-  // Whichever appears last is the decimal candidate.
-  const candidate: "." | "," = lastDot > lastComma ? "." : ",";
-  const candidateIndex = Math.max(lastDot, lastComma);
-  const digitsAfter = s.slice(candidateIndex + 1).replace(/\D/g, "").length;
+  // Both kinds present: whichever appears last is the decimal point. This
+  // resolves "1,234.56" (en) and "1.234.567,89" (EU) without extra guessing.
+  if (dotCount > 0 && commaCount > 0) {
+    const candidate: "." | "," =
+      s.lastIndexOf(".") > s.lastIndexOf(",") ? "." : ",";
+    return trailingDigits(s, candidate) === 0 ? null : candidate;
+  }
 
-  // Exactly 3 trailing digits with a preceding separator of the other kind, or
-  // repeated separators of the same kind, means grouping — e.g. "1,234,567".
-  const other = candidate === "." ? "," : ".";
-  const hasOther = s.indexOf(other) !== -1;
-  const sameKindCount = s.split(candidate).length - 1;
+  // Only one kind present. Repeats can only be grouping: "1.234.567".
+  const only: "." | "," = dotCount > 0 ? "." : ",";
+  const count = dotCount > 0 ? dotCount : commaCount;
+  if (count > 1) return null;
 
-  if (digitsAfter === 3 && (hasOther || sameKindCount > 1)) return null;
-  // A lone "1,234" / "1.234" with 3 trailing digits reads as grouping in BD.
-  if (digitsAfter === 3 && !hasOther && sameKindCount === 1) return null;
-  if (digitsAfter === 0) return null;
+  const after = trailingDigits(s, only);
+  if (after === 0) return null;
 
-  return candidate;
+  // BD and en notation: the dot is the decimal point and the comma groups
+  // thousands. So a lone comma with exactly three trailing digits is grouping
+  // ("1,234" is one thousand plus, never 1.234), while a lone dot is always a
+  // decimal point ("10.555" is ten-point-five-five-five, not ten thousand).
+  // Statement amounts carry two decimals in practice, so the remaining
+  // ambiguity is rare — and reconciliation catches it if this call is wrong.
+  if (only === "," && after === 3) return null;
+
+  return only;
+}
+
+function trailingDigits(s: string, separator: "." | ","): number {
+  return s.slice(s.lastIndexOf(separator) + 1).replace(/\D/g, "").length;
 }
 
 /** Convenience: parse and return signed minor units, or null. */
