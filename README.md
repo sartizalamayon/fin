@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Khoroch
 
-## Getting Started
+One honest ledger across every account you use — banks and mobile financial
+services (bKash, Nagad, Rocket).
 
-First, run the development server:
+Bangladeshi statements arrive as password-protected PDFs. Khoroch unlocks a
+statement in memory, extracts every transaction with an LLM, then **proves the
+extraction correct against the statement's own closing balance** before any
+figure reaches your dashboard.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Why the balance check matters
+
+An LLM reading a statement doesn't fail loudly — it fails *plausibly*. It can
+return `৳5,400` where the page said `৳5,600` and nothing looks wrong. On money,
+that is unacceptable.
+
+Statements carry an opening and a closing balance, which gives us arithmetic
+proof over a probabilistic extractor:
+
+```
+opening + Σ credits − Σ debits − Σ fees  ==  closing
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A single wrong digit anywhere breaks the sum. If it balances, every row is
+right. If it doesn't, the import is held back and shown for review rather than
+silently trusted. Sources with no balance to check against (email alerts, SMS)
+are marked `not_applicable` and treated as provisional — statement data always
+wins on conflict.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Design decisions worth knowing
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Money is integer minor units (poisha) everywhere.** Never floats.
+  `parseFloat("1234.56") * 100` is `123455.99999999999`, and across thousands of
+  rows that drift produces reconciliation failures that look like extraction
+  bugs.
+- **Dates are never assumed.** `03/04/2026` is March 4th or April 3rd depending
+  on the issuer. The parser scans a whole document for a row whose day exceeds
+  12, which settles the format for every other row in that file.
+- **The uploaded PDF is never stored.** It is processed in memory and
+  discarded; only extracted rows and their verbatim source text are kept. A
+  breach exposes transaction rows, not complete signed bank documents.
+- **Statement passwords are never stored.** Used once, then dropped.
+- **Own-account transfers net to zero.** Moving money from a bank to bKash is
+  one movement, not income plus an expense. Counting both inflates income *and*
+  spending at the same time.
+- **Isolation lives in the database.** Postgres Row Level Security, not a
+  `WHERE user_id = ?` you might forget one day.
 
-## Learn More
+## Bring your own Groq key
 
-To learn more about Next.js, take a look at the following resources:
+There is no server-side LLM key. Each user creates a free key at
+[groq.com](https://groq.com) and pastes it in during onboarding. It is
+encrypted at rest with AES-256-GCM and never returned to the browser.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Getting started
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm install
+cp .env.example .env.local   # then fill in the values
+pnpm db:migrate
+pnpm dev
+```
 
-## Deploy on Vercel
+## Commands
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Development server |
+| `pnpm build` | Production build |
+| `pnpm test` | Unit + component tests (Vitest) |
+| `pnpm test:e2e` | End-to-end tests (Playwright, mobile + desktop) |
+| `pnpm typecheck` | TypeScript, no emit |
+| `pnpm db:migrate` | Apply database migrations |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Stack
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · shadcn/ui ·
+Postgres/Supabase · Groq · Recharts · Vitest · Playwright
