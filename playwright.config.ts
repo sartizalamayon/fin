@@ -15,9 +15,27 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000",
     trace: "on-first-retry",
   },
+  /*
+   * `channel: "chrome"` drives the locally installed Google Chrome instead of
+   * Playwright's bundled Chromium. Set via PLAYWRIGHT_CHANNEL so CI can fall
+   * back to the bundled build, while a machine without room for a ~540MB
+   * browser download can still run the suite.
+   */
   projects: [
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
-    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "mobile",
+      use: {
+        ...devices["Pixel 7"],
+        channel: process.env.PLAYWRIGHT_CHANNEL ?? "chrome",
+      },
+    },
+    {
+      name: "desktop",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: process.env.PLAYWRIGHT_CHANNEL ?? "chrome",
+      },
+    },
   ],
   webServer: process.env.E2E_BASE_URL
     ? undefined

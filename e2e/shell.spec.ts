@@ -42,37 +42,50 @@ test.describe("no horizontal overflow", () => {
   }
 });
 
-test.describe("mobile navigation", () => {
-  test("bottom tab bar exposes the primary destinations", async ({
-    page,
-    isMobile,
-  }) => {
-    test.skip(!isMobile, "tab bar is mobile-only; desktop uses the side rail");
+test.describe("auth gating", () => {
+  // Every screen that can show financial data must be unreachable signed out.
+  for (const path of ["/dashboard", "/upload", "/transactions", "/settings"]) {
+    test(`${path} redirects a signed-out visitor to login`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/login/);
+      await expect(page.getByRole("button", { name: /send sign-in link/i })).toBeVisible();
+    });
+  }
 
-    await page.goto("/dashboard");
-    const nav = page.getByRole("navigation", { name: "Primary" }).last();
-    await expect(nav).toBeVisible();
-
-    for (const label of ["Dashboard", "Activity", "Upload", "Settings"]) {
-      await expect(nav.getByRole("link", { name: label })).toBeVisible();
-    }
+  test("login preserves the intended destination", async ({ page }) => {
+    await page.goto("/upload");
+    await expect(page).toHaveURL(/next=%2Fupload/);
   });
+});
 
-  test("tab targets meet the 44px minimum touch size", async ({
+test.describe("mobile ergonomics", () => {
+  test("primary actions clear the 44px touch target floor", async ({
     page,
     isMobile,
   }) => {
-    test.skip(!isMobile, "touch sizing only applies to the mobile tab bar");
+    test.skip(!isMobile, "touch sizing only matters on the phone viewport");
 
-    await page.goto("/dashboard");
-    const nav = page.getByRole("navigation", { name: "Primary" }).last();
-    const links = await nav.getByRole("link").all();
-    expect(links.length).toBeGreaterThan(0);
-
-    for (const link of links) {
-      const box = await link.boundingBox();
+    await page.goto("/");
+    for (const name of [/get started/i, /see the dashboard/i]) {
+      const box = await page.getByRole("link", { name }).boundingBox();
       expect(box).not.toBeNull();
       expect(box!.height).toBeGreaterThanOrEqual(44);
     }
+  });
+
+  test("the sign-in field and button are thumb-sized", async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, "touch sizing only matters on the phone viewport");
+
+    await page.goto("/login");
+    const email = await page.getByLabel(/email/i).boundingBox();
+    const submit = await page
+      .getByRole("button", { name: /send sign-in link/i })
+      .boundingBox();
+
+    expect(email!.height).toBeGreaterThanOrEqual(44);
+    expect(submit!.height).toBeGreaterThanOrEqual(44);
   });
 });
