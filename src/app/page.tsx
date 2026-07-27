@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ShieldCheck, FileLock2, ChartNoAxesCombined } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 
 const FEATURES = [
   {
@@ -25,9 +25,12 @@ export default function LandingPage() {
     <div className="flex min-h-dvh flex-col">
       <header className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-4 md:px-8">
         <span className="text-lg font-semibold tracking-tight">Khoroch</span>
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/dashboard">Open app</Link>
-        </Button>
+        <Link
+          href="/dashboard"
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          Open app
+        </Link>
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16 md:px-8">
@@ -41,17 +44,25 @@ export default function LandingPage() {
             itself before a single figure reaches your dashboard.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg" className="h-12 w-full sm:w-auto">
-              <Link href="/onboarding">Get started</Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="h-12 w-full sm:w-auto"
+            <Link
+              href="/onboarding"
+              className={buttonVariants({
+                size: "lg",
+                className: "h-12 w-full sm:w-auto",
+              })}
             >
-              <Link href="/dashboard">See the dashboard</Link>
-            </Button>
+              Get started
+            </Link>
+            <Link
+              href="/dashboard"
+              className={buttonVariants({
+                size: "lg",
+                variant: "outline",
+                className: "h-12 w-full sm:w-auto",
+              })}
+            >
+              See the dashboard
+            </Link>
           </div>
         </section>
 
