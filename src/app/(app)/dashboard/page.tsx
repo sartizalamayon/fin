@@ -19,7 +19,7 @@ import type { Transaction } from "@/lib/core/types";
 import { listTransactions } from "@/lib/db/queries";
 import { getCurrentUser } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Dashboard — Khoroch" };
+export const metadata: Metadata = { title: "Dashboard — fin." };
 export const dynamic = "force-dynamic";
 
 /**

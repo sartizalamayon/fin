@@ -1,11 +1,11 @@
-# Khoroch
+# fin.
 
 One honest ledger across every account you use — banks and mobile financial
 services (bKash, Nagad, Rocket).
 
-Bangladeshi statements arrive as password-protected PDFs. Khoroch unlocks a
-statement in memory, extracts every transaction with an LLM, then **proves the
-extraction correct against the statement's own closing balance** before any
+Bangladeshi statements arrive as password-protected PDFs. A statement is
+unlocked in memory, every transaction extracted with an LLM, and the result
+**proven correct against the statement's own closing balance** before any
 figure reaches your dashboard.
 
 ## Why the balance check matters

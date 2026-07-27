@@ -14,10 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Khoroch — every account, one ledger",
+  title: "fin. — every account, one ledger",
   description:
     "Turn your bank and bKash statements into one verified view of your money. Statement data is checked against its own closing balance before it counts.",
-  applicationName: "Khoroch",
+  applicationName: "fin.",
 };
 
 /**

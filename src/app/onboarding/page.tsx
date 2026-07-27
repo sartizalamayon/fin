@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { OnboardingClient } from "./onboarding-client";
 
 export const metadata: Metadata = {
-  title: "Set up your Groq key — Khoroch",
+  title: "Set up your Groq key — fin.",
 };
 
 export default function OnboardingPage() {
@@ -13,8 +13,8 @@ export default function OnboardingPage() {
           Connect a Groq key
         </h1>
         <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">
-          Khoroch reads your statements with an AI model running on Groq. The
-          key is yours — free to create, and it stays encrypted on our side.
+          Your statements are read by an AI model running on Groq. The key is
+          yours — free to create, and it stays encrypted on our side.
         </p>
       </header>
 

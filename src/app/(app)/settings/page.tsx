@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { GroqKeyCard } from "./groq-key-card";
 
 export const metadata: Metadata = {
-  title: "Settings — Khoroch",
+  title: "Settings — fin.",
 };
 
 export default function SettingsPage() {
@@ -15,7 +15,7 @@ export default function SettingsPage() {
       <GroqKeyCard />
 
       <section className="rounded-xl border p-4">
-        <h2 className="text-sm font-medium">What Khoroch stores</h2>
+        <h2 className="text-sm font-medium">What fin. stores</h2>
         <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
           <li>
             <span className="text-foreground">Transaction rows</span> — the

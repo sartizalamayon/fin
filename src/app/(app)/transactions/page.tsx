@@ -6,7 +6,7 @@ import type { Category, Direction, Transaction } from "@/lib/core/types";
 import { listTransactions } from "@/lib/db/queries";
 import { getCurrentUser } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Activity — Khoroch" };
+export const metadata: Metadata = { title: "Activity — fin." };
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;

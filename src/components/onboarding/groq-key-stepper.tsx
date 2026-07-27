@@ -37,7 +37,7 @@ export const GROQ_STEPS: GroqStep[] = [
   {
     title: "Create a new API key",
     detail:
-      "Tap “Create API Key”, name it anything you like — Khoroch works — and copy the key. Groq shows it once and never again, so copy it before you close the box.",
+      "Tap “Create API Key”, name it anything you like — “fin” works — and copy the key. Groq shows it once and never again, so copy it before you close the box.",
     advanceLabel: "I've copied my key",
   },
   {

@@ -89,7 +89,7 @@ export function DesktopSidebar() {
     <aside className="hidden w-56 shrink-0 border-r md:block">
       <div className="sticky top-0 flex h-dvh flex-col gap-6 p-4">
         <Link href="/dashboard" className="px-3 text-lg font-semibold tracking-tight">
-          Khoroch
+          fin.
         </Link>
         <nav aria-label="Primary" className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => (

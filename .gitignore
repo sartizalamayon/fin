@@ -52,3 +52,6 @@ next-env.d.ts
 
 # local secrets
 .supabase-db-password.local
+
+# supabase cli scratch
+supabase/.temp/

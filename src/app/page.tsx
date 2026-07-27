@@ -24,7 +24,7 @@ export default function LandingPage() {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-4 md:px-8">
-        <span className="text-lg font-semibold tracking-tight">Khoroch</span>
+        <span className="text-lg font-semibold tracking-tight">fin.</span>
         <Link
           href="/dashboard"
           className={buttonVariants({ variant: "ghost", size: "sm" })}
@@ -39,9 +39,9 @@ export default function LandingPage() {
             Every account you use, in one honest ledger.
           </h1>
           <p className="mt-4 max-w-xl text-pretty text-base leading-relaxed text-muted-foreground md:text-lg">
-            Upload a bank or bKash statement. Khoroch unlocks it, pulls out
-            every transaction, and verifies the total against the statement
-            itself before a single figure reaches your dashboard.
+            Upload a bank or bKash statement. It gets unlocked, every
+            transaction pulled out, and the total verified against the
+            statement itself before a single figure reaches your dashboard.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
