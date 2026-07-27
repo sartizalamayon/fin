@@ -16,24 +16,24 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   /*
-   * `channel: "chrome"` drives the locally installed Google Chrome instead of
-   * Playwright's bundled Chromium. Set via PLAYWRIGHT_CHANNEL so CI can fall
-   * back to the bundled build, while a machine without room for a ~540MB
-   * browser download can still run the suite.
+   * Defaults to Playwright's pinned Chromium, so every run uses the same
+   * browser build. Set PLAYWRIGHT_CHANNEL=chrome to drive the locally
+   * installed Google Chrome instead — useful on a machine without room for
+   * the ~540MB download.
    */
   projects: [
     {
       name: "mobile",
       use: {
         ...devices["Pixel 7"],
-        channel: process.env.PLAYWRIGHT_CHANNEL ?? "chrome",
+        channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
       },
     },
     {
       name: "desktop",
       use: {
         ...devices["Desktop Chrome"],
-        channel: process.env.PLAYWRIGHT_CHANNEL ?? "chrome",
+        channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
       },
     },
   ],
