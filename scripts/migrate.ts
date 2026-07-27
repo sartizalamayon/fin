@@ -114,6 +114,14 @@ async function ensureMigrationsTable(sql: postgres.Sql): Promise<void> {
       duration_ms integer not null default 0
     )
   `;
+
+  /*
+   * This table lives in `public`, which on Supabase is exposed through the API.
+   * It holds no user data, but it does advertise the shape and history of the
+   * schema to anyone holding the anon key. RLS with no policies denies every
+   * role except the owner — which is the only role that ever needs it.
+   */
+  await sql`alter table public._migrations enable row level security`;
 }
 
 interface AppliedRow {

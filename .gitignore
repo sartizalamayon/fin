@@ -48,3 +48,7 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /.vercel
+.supabase-provision.env
+
+# local secrets
+.supabase-db-password.local
