@@ -41,7 +41,9 @@ import type {
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+// 60s is the ceiling on Vercel's Hobby plan and is ample: decryption is
+// instant and Groq answers in seconds even when a long statement is chunked.
+export const maxDuration = 60;
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 

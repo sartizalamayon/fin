@@ -34,6 +34,26 @@ beforeAll(async () => {
   qpdfAvailable = await hasQpdf();
 });
 
+describe("pdf.js interop", () => {
+  it("loads without a native canvas package present", async () => {
+    // pdf.js references DOMMatrix/Path2D at module scope and polyfills them
+    // from an optional native canvas build. Where that is absent — any
+    // serverless host — the import throws and takes the whole route with it.
+    // Shims stand in, since text extraction never rasterises anything.
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    expect(typeof pdfjs.getDocument).toBe("function");
+  });
+
+  it("keeps the inlined password codes in step with pdf.js", async () => {
+    // These are inlined so error translation can stay synchronous; if pdf.js
+    // ever renumbers them, this fails instead of silently mislabelling a
+    // wrong password as a missing one.
+    const { PasswordResponses } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    expect(PasswordResponses.NEED_PASSWORD).toBe(1);
+    expect(PasswordResponses.INCORRECT_PASSWORD).toBe(2);
+  });
+});
+
 describe("plain PDFs", () => {
   it("extracts the text of an unencrypted statement", async () => {
     const bytes = buildPdfFromRows(STATEMENT_ROWS);

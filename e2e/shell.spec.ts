@@ -123,6 +123,63 @@ test.describe("magic-link landing", () => {
   });
 });
 
+test.describe("upload API contract", () => {
+  /*
+   * The upload UI reads every response as JSON. When a route 500s, Next
+   * returns an HTML error page, `response.json()` throws, and the flow reports
+   * "could not reach the server" — which blames the network for a server-side
+   * crash and gives no clue where to look.
+   *
+   * This caught exactly that: pdf.js references DOMMatrix at module scope, and
+   * on a serverless host with no native canvas package the import threw and
+   * took the whole route down before any of its own code ran. Unit tests could
+   * not see it because it only reproduces in the deployed runtime.
+   */
+  test("POST answers with JSON even when it rejects the request", async ({
+    request,
+  }) => {
+    const response = await request.post("/api/documents", {
+      multipart: {
+        file: {
+          name: "probe.pdf",
+          mimeType: "application/pdf",
+          buffer: Buffer.from("%PDF-1.4\n%%EOF"),
+        },
+        provider: "bkash",
+      },
+    });
+
+    expect(response.headers()["content-type"]).toContain("application/json");
+    expect(response.status()).toBeLessThan(500);
+
+    const body = await response.json();
+    expect(typeof body.status).toBe("string");
+  });
+
+  test("GET answers with JSON", async ({ request }) => {
+    const response = await request.get("/api/documents");
+    expect(response.headers()["content-type"]).toContain("application/json");
+    expect(response.status()).toBeLessThan(500);
+  });
+
+  test("refuses an unauthenticated upload", async ({ request }) => {
+    const response = await request.post("/api/documents", {
+      multipart: {
+        file: {
+          name: "probe.pdf",
+          mimeType: "application/pdf",
+          buffer: Buffer.from("%PDF-1.4\n%%EOF"),
+        },
+        provider: "bkash",
+      },
+    });
+
+    const body = await response.json();
+    expect(body.status).toBe("error");
+    expect(body.code).toBe("unauthorized");
+  });
+});
+
 test.describe("mobile ergonomics", () => {
   test("primary actions clear the 44px touch target floor", async ({
     page,

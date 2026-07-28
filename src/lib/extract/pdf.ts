@@ -14,11 +14,83 @@
  * horizontal gaps back into whitespace.
  */
 
-import {
-  getDocument,
-  PasswordResponses,
-  type PDFDocumentProxy,
-} from "pdfjs-dist/legacy/build/pdf.mjs";
+import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
+
+type PdfjsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
+
+/**
+ * Canvas shims, installed before pdf.js is imported.
+ *
+ * pdf.js reaches for `DOMMatrix`, `Path2D` and `ImageData` at module scope and
+ * tries to polyfill them from the optional `@napi-rs/canvas` native package. On
+ * a serverless host that package is not installed, the polyfill is skipped with
+ * a warning, and the module then throws `ReferenceError: DOMMatrix is not
+ * defined` on import — taking the whole route down with an HTML 500 before any
+ * of our code runs.
+ *
+ * These symbols are only used for RENDERING. We extract text and never
+ * rasterise a page, so they need to exist, not to work. Pulling in a ~40MB
+ * native canvas build to satisfy an import we never exercise would be the wrong
+ * trade.
+ */
+function installCanvasShims(): void {
+  const g = globalThis as Record<string, unknown>;
+
+  if (typeof g.DOMMatrix === "undefined") {
+    g.DOMMatrix = class DOMMatrixShim {
+      a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+      constructor(init?: number[] | string) {
+        if (Array.isArray(init) && init.length >= 6) {
+          [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+        }
+      }
+      // pdf.js chains these when building render transforms; returning `this`
+      // keeps any such call harmless on a path we never take.
+      multiply() { return this; }
+      translate() { return this; }
+      scale() { return this; }
+      rotate() { return this; }
+      invertSelf() { return this; }
+    };
+  }
+
+  if (typeof g.Path2D === "undefined") {
+    g.Path2D = class Path2DShim {
+      addPath() {}
+      moveTo() {}
+      lineTo() {}
+      bezierCurveTo() {}
+      quadraticCurveTo() {}
+      closePath() {}
+      rect() {}
+    };
+  }
+
+  if (typeof g.ImageData === "undefined") {
+    g.ImageData = class ImageDataShim {
+      readonly data: Uint8ClampedArray;
+      constructor(readonly width: number, readonly height: number) {
+        this.data = new Uint8ClampedArray(width * height * 4);
+      }
+    };
+  }
+}
+
+let pdfjsPromise: Promise<PdfjsModule> | null = null;
+
+/**
+ * Load pdf.js once, with the shims in place first.
+ *
+ * The import has to be dynamic: a static one is hoisted above every statement
+ * in the module, so the shims would be installed too late to matter.
+ */
+function loadPdfjs(): Promise<PdfjsModule> {
+  pdfjsPromise ??= (async () => {
+    installCanvasShims();
+    return import("pdfjs-dist/legacy/build/pdf.mjs");
+  })();
+  return pdfjsPromise;
+}
 
 /**
  * The legacy build's type entrypoint does not re-export the text-content item
@@ -112,6 +184,8 @@ export async function extractText(
   data.set(bytes);
 
   const trimmedPassword = password && password.length > 0 ? password : undefined;
+
+  const { getDocument } = await loadPdfjs();
 
   const loadingTask = getDocument({
     data,
@@ -313,14 +387,22 @@ function median(values: readonly number[]): number {
  * "wrong password"; only `code` tells them apart, and conflating them means the
  * UI cannot decide whether to show a password box or a "that was wrong" error.
  */
+/**
+ * pdf.js `PasswordResponses`, inlined so this stays synchronous now that the
+ * module is loaded lazily. The values are fixed by pdf.js and asserted against
+ * the real module in pdf.test.ts, so a future change cannot drift silently.
+ */
+const NEED_PASSWORD = 1;
+const INCORRECT_PASSWORD = 2;
+
 function translateOpenError(err: unknown): Error {
   const candidate = err as { name?: string; code?: number; message?: string } | null;
 
   if (candidate?.name === "PasswordException") {
-    if (candidate.code === PasswordResponses.INCORRECT_PASSWORD) {
+    if (candidate.code === INCORRECT_PASSWORD) {
       return new WrongPasswordError(err);
     }
-    if (candidate.code === PasswordResponses.NEED_PASSWORD) {
+    if (candidate.code === NEED_PASSWORD) {
       return new PasswordRequiredError(err);
     }
     // Unknown code: needing a password is the safer assumption — it prompts
