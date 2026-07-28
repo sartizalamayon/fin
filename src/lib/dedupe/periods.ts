@@ -160,7 +160,12 @@ export function overlapDays(overlaps: readonly PeriodOverlap[] | null): number {
   const dayMs = 24 * 60 * 60 * 1000;
   let total = 0;
   for (const window of overlaps) {
-    total += (timeOf(window.end) - timeOf(window.start)) / dayMs;
+    // Both bounds are inclusive, so a window is (end − start) + 1 days. Without
+    // the +1 the commonest overlap of all — one statement ending on the day the
+    // next begins — measures zero, and any caller gating on `> 0` skips exactly
+    // the case it was written to catch.
+    const span = (timeOf(window.end) - timeOf(window.start)) / dayMs + 1;
+    total += Math.max(0, span);
   }
   return Math.round(total * 100) / 100;
 }
