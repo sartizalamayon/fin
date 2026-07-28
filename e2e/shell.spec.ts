@@ -90,7 +90,7 @@ test.describe("sign-in options", () => {
 
   test("explains an expired sign-in link", async ({ page }) => {
     await page.goto("/login?error=invalid_link");
-    await expect(page.getByRole("alert")).toContainText(/expired|already used/i);
+    await expect(page.locator('p[role="alert"]')).toContainText(/expired|already used/i);
   });
 });
 
@@ -113,13 +113,13 @@ test.describe("magic-link landing", () => {
   }) => {
     await page.goto("/auth/callback");
     await expect(page).toHaveURL(/\/login\?error=missing_code/);
-    await expect(page.getByRole("alert")).toContainText(/incomplete/i);
+    await expect(page.locator('p[role="alert"]')).toContainText(/incomplete/i);
   });
 
   test("a bad code lands back on login with an explanation", async ({ page }) => {
     await page.goto("/auth/callback?code=definitely-not-valid");
     await expect(page).toHaveURL(/\/login\?error=/);
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.locator('p[role="alert"]')).toBeVisible();
   });
 });
 
