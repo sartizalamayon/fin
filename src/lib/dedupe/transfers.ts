@@ -1,5 +1,5 @@
 import type { Transaction, TransferCandidate } from "../core/types";
-import { normaliseDescription } from "./similarity";
+import { normaliseDescription, similarity } from "./similarity";
 
 /**
  * Own-account transfer detection.
@@ -36,8 +36,12 @@ export const DEFAULT_FLAT_FEE_MINOR = 10_00;
 export const DEFAULT_MAX_FEE_MINOR = 1_000_00;
 
 /**
- * Above the base score a pair needs some corroboration — closeness in time,
- * an exactly explained fee, or transfer vocabulary — before we link it.
+ * Floor for reporting a pair.
+ *
+ * Note this is a ranking bar, not the safety mechanism. Matching amounts and
+ * close timing alone can score well above it — a salary landing while rent
+ * leaves does — so linking additionally REQUIRES positive evidence of a
+ * self-transfer (see findTransferPairs). Confidence only orders the survivors.
  */
 export const DEFAULT_MIN_CONFIDENCE = 0.6;
 
@@ -113,6 +117,49 @@ export function allowedFeeGapMinor(
 ): number {
   const proportional = Math.ceil(Math.abs(principalMinor) * opts.feeRate);
   return Math.min(opts.maxFeeMinor, Math.max(opts.flatFeeMinor, proportional));
+}
+
+/**
+ * Words a statement uses for each provider. `bank` is deliberately absent: it
+ * is too generic to be evidence of anything ("BANK CHARGE", "BANK OF ...").
+ */
+const PROVIDER_WORDS: Record<string, string[]> = {
+  bkash: ["bkash", "bikash"],
+  nagad: ["nagad", "nogod"],
+  rocket: ["rocket"],
+  upay: ["upay"],
+  card: ["card", "visa", "mastercard"],
+};
+
+/** Does this text name the given provider — i.e. the other end of the move? */
+function mentionsProvider(
+  text: string | null | undefined,
+  provider: string,
+): boolean {
+  const words = PROVIDER_WORDS[provider];
+  if (!words) return false;
+
+  const normalised = normaliseDescription(text);
+  if (normalised === "") return false;
+
+  return words.some((word) => normalised.includes(word));
+}
+
+/**
+ * True when both legs name a real, and clearly different, counterparty.
+ *
+ * You do not pay two unrelated third parties to move money between your own
+ * accounts, so this pattern is a payment pair, not a transfer.
+ */
+function namesDifferentThirdParties(
+  a: { counterparty: string | null },
+  b: { counterparty: string | null },
+): boolean {
+  const left = normaliseDescription(a.counterparty);
+  const right = normaliseDescription(b.counterparty);
+  if (left === "" || right === "") return false;
+
+  return similarity(a.counterparty, b.counterparty) < 0.5;
 }
 
 function hasTransferVocabulary(...texts: (string | null | undefined)[]): boolean {
@@ -246,6 +293,39 @@ export function findTransferPairs(
       const allowed = allowedFeeGapMinor(principal, opts);
       if (gap > allowed) continue;
 
+      // --- self-transfer evidence (required, not merely scored) ----------
+      //
+      // Opposite directions, matching amounts and closeness in time are also
+      // exactly what a COINCIDENCE looks like: a salary landing in the bank
+      // while rent leaves the wallet ten minutes later satisfies all three.
+      // Treating that as a transfer erases real income AND real spending from
+      // every chart at once, and because the net stays right, nothing looks
+      // wrong. So something must positively say "the user moved their own
+      // money" before these two rows are linked.
+      const vocabulary = hasTransferVocabulary(
+        debit.description,
+        credit.description,
+        debit.counterparty,
+        credit.counterparty,
+      );
+      const namesCounterProvider =
+        mentionsProvider(debit.description, credit.provider) ||
+        mentionsProvider(debit.counterparty, credit.provider) ||
+        mentionsProvider(credit.description, debit.provider) ||
+        mentionsProvider(credit.counterparty, debit.provider);
+      // A gap that lands exactly on the fee the statement itself declares is
+      // hard to produce by chance; a plain exact match is not evidence at all.
+      const feeExplained = gap > 0 && explainedByDeclaredFee;
+
+      if (!vocabulary && !namesCounterProvider && !feeExplained) continue;
+
+      // Two different named third parties cannot both be the user. Skipped when
+      // a leg names the other provider, since "bKash"/"BRAC Bank" are distinct
+      // strings that legitimately describe the two ends of one movement.
+      if (!namesCounterProvider && namesDifferentThirdParties(debit, credit)) {
+        continue;
+      }
+
       // --- confidence ---------------------------------------------------
       let confidence = BASE_CONFIDENCE;
       const reasons: string[] = [];
@@ -265,16 +345,14 @@ export function findTransferPairs(
       confidence += 0.15 * closeness;
       reasons.push(`${Math.round(gapMs / 60_000)} min apart`);
 
-      if (
-        hasTransferVocabulary(
-          debit.description,
-          credit.description,
-          debit.counterparty,
-          credit.counterparty,
-        )
-      ) {
+      if (vocabulary) {
         confidence += 0.1;
         reasons.push("transfer wording on at least one leg");
+      }
+
+      if (namesCounterProvider) {
+        confidence += 0.08;
+        reasons.push("one leg names the other account");
       }
 
       confidence = Math.round(Math.min(1, Math.max(0, confidence)) * 1000) / 1000;
