@@ -87,13 +87,14 @@ RULES — every one of these is checked by arithmetic after you answer.
      - lines matching "--- page N ---" (these are page markers we inserted)
    Those figures belong in openingBalanceMinor / closingBalanceMinor, never in "rows".
 
-5. OPENING AND CLOSING BALANCE ARE REQUIRED WHEN PRINTED. Read them from the
-   statement header, summary box, or footer and put them in openingBalanceMinor
-   and closingBalanceMinor. They are how the extraction gets verified — without
-   them nothing can be proven. Use null ONLY when the document genuinely states
-   no balance (an SMS or email alert). If the statement shows a running Balance
-   column but no explicit summary, the opening balance is the balance BEFORE the
-   first row and the closing balance is the balance after the LAST row.
+5. OPENING AND CLOSING BALANCE: COPY, NEVER CALCULATE. Read them from the
+   statement header, summary box or footer and put them in openingBalanceMinor
+   and closingBalanceMinor. If the document does not print them as their own
+   labelled figures, set BOTH to null — do not derive them from the first or
+   last row. A bKash statement has no such summary, and a guessed opening
+   balance is indistinguishable from a correct one until it silently fails
+   verification. The running Balance column (rule 8) is what proves those
+   statements, and it is read from the rows themselves.
 
 6. TRANSACTION IDS GO IN refId. bKash calls this "TrxID", Nagad "TxnID", banks
    print a reference or cheque number. Copy it exactly, uppercase as printed.
@@ -107,12 +108,20 @@ RULES — every one of these is checked by arithmetic after you answer.
    A bank "Service Charge" printed as its own dated row IS its own transaction:
    emit it as a debit row with feeMinor 0.
 
-8. balanceAfterMinor is the running balance printed on that row, as an integer
-   minor-unit value, or null when the statement prints no running balance.
+8. balanceAfterMinor IS THE MOST IMPORTANT FIELD ON THE ROW. It is the running
+   balance printed in that row's Balance column, as an integer minor-unit
+   value. Copy it for EVERY row that shows one. When a statement prints no
+   opening or closing summary — bKash does not — this column is the only thing
+   that can prove the extraction, and each row is checked against the one before
+   it. A row left null is a row that cannot be verified. Use null only when the
+   statement genuinely prints no balance for it.
 
 9. rawText IS THE SOURCE LINE, VERBATIM. Copy the whole line for that row from
    the input, unchanged, including its date exactly as printed. Do not reformat
-   it, do not normalise the date, do not translate it.
+   it, do not normalise the date, do not translate it. When a row wraps across
+   two lines — bKash puts the date and amounts on the first and the time and
+   overflowing details on the second — join both with a single space. The date
+   must survive intact, because the dates are re-derived from this text.
 
 10. DATES: put your best ISO 8601 reading in occurredAt, and keep the printed
     date untouched inside rawText. Do not try to resolve ambiguous formats like

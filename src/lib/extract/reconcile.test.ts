@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { reconcile, findLikelyCulprits } from "./reconcile";
+import { reconcile, findLikelyCulprits, verifyBalanceChain } from "./reconcile";
 import type { ExtractedRow, StatementExtraction } from "@/lib/core/types";
 
 /**
@@ -247,6 +247,189 @@ describe("reconcile", () => {
         ),
       ).toThrow(/integer minor units/i);
     });
+  });
+});
+
+describe("running-balance chain", () => {
+  /**
+   * A real bKash statement prints no opening or closing balance line — only a
+   * Balance column on every row. Verified against a real statement: 3 pages,
+   * 70 dated rows, "Total In"/"Total Out" in the overview, and no balance
+   * anchors anywhere.
+   *
+   * Without this path those statements reconcile as `not_applicable`, which
+   * means the app's central promise never fires for its primary source.
+   */
+  function chained(
+    steps: { direction: "credit" | "debit"; amount: number; fee?: number }[],
+    startBalance: number,
+  ): ExtractedRow[] {
+    let balance = startBalance;
+    return steps.map((step) => {
+      const effect =
+        (step.direction === "credit" ? step.amount : -step.amount) - (step.fee ?? 0);
+      balance += effect;
+      return makeRow({
+        direction: step.direction,
+        amountMinor: step.amount,
+        feeMinor: step.fee ?? 0,
+        balanceAfterMinor: balance,
+      });
+    });
+  }
+
+  it("verifies a statement that declares no opening or closing balance", () => {
+    const rows = chained(
+      [
+        { direction: "debit", amount: 50_000, fee: 850 },
+        { direction: "credit", amount: 200_000 },
+        { direction: "debit", amount: 12_345 },
+      ],
+      1_000_000,
+    );
+
+    const result = reconcile(
+      makeStatement({
+        openingBalanceMinor: null,
+        closingBalanceMinor: null,
+        rows,
+      }),
+    );
+
+    expect(result.status).toBe("verified");
+    expect(result.deltaMinor).toBe(0);
+  });
+
+  it("derives the opening and closing balances from the chain", () => {
+    const rows = chained(
+      [
+        { direction: "debit", amount: 50_000 },
+        { direction: "debit", amount: 20_000 },
+      ],
+      1_000_000,
+    );
+
+    const result = reconcile(
+      makeStatement({ openingBalanceMinor: null, closingBalanceMinor: null, rows }),
+    );
+
+    expect(result.openingBalanceMinor).toBe(1_000_000);
+    expect(result.closingBalanceMinor).toBe(930_000);
+  });
+
+  it("names the exact row where the chain breaks", () => {
+    // The advantage over a single end-to-end sum: "row 3 is wrong", not
+    // "something somewhere is wrong".
+    const rows = chained(
+      [
+        { direction: "debit", amount: 50_000 },
+        { direction: "debit", amount: 20_000 },
+        { direction: "debit", amount: 30_000 },
+      ],
+      1_000_000,
+    );
+    rows[2] = { ...rows[2], balanceAfterMinor: rows[2].balanceAfterMinor! + 500 };
+
+    const result = reconcile(
+      makeStatement({ openingBalanceMinor: null, closingBalanceMinor: null, rows }),
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.message).toMatch(/row 3/i);
+    expect(result.deltaMinor).toBe(500);
+  });
+
+  it("accounts for the fee column bKash prints separately", () => {
+    // Send Money and Cash Out both carry a charge in its own column, and the
+    // running balance reflects it — so the chain only closes if fees are
+    // subtracted too.
+    const rows = chained(
+      [
+        { direction: "debit", amount: 100_000, fee: 1_850 },
+        { direction: "debit", amount: 50_000, fee: 925 },
+      ],
+      500_000,
+    );
+
+    const result = reconcile(
+      makeStatement({ openingBalanceMinor: null, closingBalanceMinor: null, rows }),
+    );
+
+    expect(result.status).toBe("verified");
+    expect(result.closingBalanceMinor).toBe(500_000 - 100_000 - 1_850 - 50_000 - 925);
+    expect(result.totalFeesMinor).toBe(2_775);
+  });
+
+  it("stays not_applicable when rows carry no balances at all", () => {
+    const result = reconcile(
+      makeStatement({
+        openingBalanceMinor: null,
+        closingBalanceMinor: null,
+        rows: [makeRow({ balanceAfterMinor: null }), makeRow({ balanceAfterMinor: null })],
+      }),
+    );
+
+    expect(result.status).toBe("not_applicable");
+  });
+
+  it("needs two balances before it can prove anything", () => {
+    // One row gives nothing to compare against.
+    const result = reconcile(
+      makeStatement({
+        openingBalanceMinor: null,
+        closingBalanceMinor: null,
+        rows: [makeRow({ balanceAfterMinor: 500_000 })],
+      }),
+    );
+
+    expect(result.status).toBe("not_applicable");
+  });
+
+  it("prefers declared balances when the statement does state them", () => {
+    // A bank statement with real anchors should use them, not the chain.
+    const rows = chained([{ direction: "debit", amount: 50_000 }], 1_000_000);
+
+    const result = reconcile(
+      makeStatement({
+        openingBalanceMinor: 1_000_000,
+        closingBalanceMinor: 950_000,
+        rows,
+      }),
+    );
+
+    expect(result.status).toBe("verified");
+  });
+});
+
+describe("verifyBalanceChain", () => {
+  it("reports every break, not just the first", () => {
+    const rows = [
+      makeRow({ direction: "debit", amountMinor: 10_000, balanceAfterMinor: 90_000 }),
+      makeRow({ direction: "debit", amountMinor: 10_000, balanceAfterMinor: 70_000 }),
+      makeRow({ direction: "debit", amountMinor: 10_000, balanceAfterMinor: 40_000 }),
+    ];
+
+    const chain = verifyBalanceChain(rows);
+    expect(chain.checkedPairs).toBe(2);
+    expect(chain.breaks).toHaveLength(2);
+    expect(chain.breaks[0].rowIndex).toBe(1);
+  });
+
+  it("skips pairs where a balance is missing rather than guessing", () => {
+    const rows = [
+      makeRow({ balanceAfterMinor: 100_000 }),
+      makeRow({ balanceAfterMinor: null }),
+      makeRow({ balanceAfterMinor: 80_000 }),
+    ];
+
+    expect(verifyBalanceChain(rows).checkedPairs).toBe(0);
+  });
+
+  it("handles empty input", () => {
+    const chain = verifyBalanceChain([]);
+    expect(chain.checkedPairs).toBe(0);
+    expect(chain.derivedOpeningMinor).toBeNull();
+    expect(chain.derivedClosingMinor).toBeNull();
   });
 });
 

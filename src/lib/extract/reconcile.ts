@@ -37,12 +37,125 @@ export interface ReconcileTotals {
  * - `not_applicable` — the document declares no balances (SMS, email alert),
  *                      so there is nothing to check the rows against
  */
+/** One consecutive pair of rows whose running balances disagree. */
+export interface BalanceBreak {
+  /** Index of the row whose balance does not follow from the row before it. */
+  rowIndex: number;
+  /** balanceAfter[i] − (balanceAfter[i−1] + effect[i]). Non-zero by definition. */
+  deltaMinor: number;
+}
+
+export interface BalanceChainResult {
+  /** Consecutive pairs that could be compared. */
+  checkedPairs: number;
+  breaks: BalanceBreak[];
+  /** Balance before the first row, derived from it. Null if unavailable. */
+  derivedOpeningMinor: number | null;
+  /** Balance after the last row. Null if unavailable. */
+  derivedClosingMinor: number | null;
+}
+
+/**
+ * Verify a statement against its own running-balance column.
+ *
+ * Real bKash statements print no "opening balance" or "closing balance" line —
+ * only a Balance column on every row. Without this check they reconcile as
+ * `not_applicable`, which means the app's central promise never actually fires
+ * for its primary source and unverified figures reach the ledger.
+ *
+ * The chain is also a STRONGER proof than opening-plus-closing: instead of one
+ * end-to-end sum that says only "something is wrong somewhere", it verifies
+ * every row individually and names the exact row where the arithmetic breaks.
+ */
+export function verifyBalanceChain(
+  rows: readonly ExtractedRow[],
+): BalanceChainResult {
+  const breaks: BalanceBreak[] = [];
+  let checkedPairs = 0;
+  let derivedOpeningMinor: number | null = null;
+
+  const balanceOf = (row: ExtractedRow): number | null =>
+    typeof row.balanceAfterMinor === "number" ? row.balanceAfterMinor : null;
+
+  const firstBalance = rows.length > 0 ? balanceOf(rows[0]) : null;
+  if (firstBalance !== null) {
+    derivedOpeningMinor = firstBalance - rowEffect(rows[0]);
+  }
+
+  for (let i = 1; i < rows.length; i++) {
+    const previous = balanceOf(rows[i - 1]);
+    const current = balanceOf(rows[i]);
+    if (previous === null || current === null) continue;
+
+    checkedPairs += 1;
+    const expected = previous + rowEffect(rows[i]);
+    const delta = current - expected;
+    if (delta !== 0) breaks.push({ rowIndex: i, deltaMinor: delta });
+  }
+
+  let derivedClosingMinor: number | null = null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const balance = balanceOf(rows[i]);
+    if (balance !== null) {
+      derivedClosingMinor = balance;
+      break;
+    }
+  }
+
+  return { checkedPairs, breaks, derivedOpeningMinor, derivedClosingMinor };
+}
+
 export function reconcile(extraction: StatementExtraction): ReconcileResult {
   const totals = sumRows(extraction.rows);
   const currency = extraction.currency ?? "BDT";
 
-  const opening = extraction.openingBalanceMinor;
-  const closing = extraction.closingBalanceMinor;
+  let opening = extraction.openingBalanceMinor;
+  let closing = extraction.closingBalanceMinor;
+
+  // No declared balances, but the rows carry a running balance column: verify
+  // against that instead. This is the normal shape of a bKash statement.
+  if (opening === null || closing === null) {
+    const chain = verifyBalanceChain(extraction.rows);
+
+    if (chain.checkedPairs > 0) {
+      if (chain.breaks.length > 0) {
+        const first = chain.breaks[0];
+        return {
+          status: "failed",
+          deltaMinor: first.deltaMinor,
+          openingBalanceMinor: chain.derivedOpeningMinor,
+          closingBalanceMinor: chain.derivedClosingMinor,
+          computedClosingMinor: chain.derivedClosingMinor,
+          ...totals,
+          message:
+            `Row ${first.rowIndex + 1} does not follow from the balance on the ` +
+            `row before it — the running balance is out by ` +
+            `${formatMoney(Math.abs(first.deltaMinor), currency)}. ` +
+            (chain.breaks.length > 1
+              ? `${chain.breaks.length} rows break the chain in total.`
+              : `Every other row checks out.`),
+        };
+      }
+
+      // Every consecutive pair agrees, so each row is individually proven.
+      opening = chain.derivedOpeningMinor;
+      closing = chain.derivedClosingMinor;
+
+      if (opening !== null && closing !== null) {
+        return {
+          status: "verified",
+          deltaMinor: 0,
+          openingBalanceMinor: opening,
+          closingBalanceMinor: closing,
+          computedClosingMinor: closing,
+          ...totals,
+          message:
+            `All ${totals.rowCount} rows follow their running balance exactly, ` +
+            `ending at ${formatMoney(closing, currency)}.`,
+        };
+      }
+    }
+  }
 
   if (opening === null || closing === null) {
     return {
