@@ -110,6 +110,8 @@ describe("VerifiedResult", () => {
         filename="bkash-march.pdf"
         reconcile={verifiedReconcile}
         rows={sampleRows}
+        periodStart={new Date("2026-03-01T00:00:00Z")}
+        periodEnd={new Date("2026-03-31T00:00:00Z")}
         onViewTransactions={vi.fn()}
         onUploadAnother={vi.fn()}
         {...props}
