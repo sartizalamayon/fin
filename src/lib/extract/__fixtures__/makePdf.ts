@@ -242,6 +242,9 @@ export async function encryptPdf(
       `--user-password=${options.userPassword}`,
       `--owner-password=${owner}`,
       `--bits=${bits}`,
+      // At 128 bits qpdf defaults to RC4 and modern builds refuse to emit it.
+      // Real bank statements at this strength use AES-128, so ask for that.
+      ...(bits === 128 ? ["--use-aes=y"] : []),
       "--",
       input,
       "-",
