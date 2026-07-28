@@ -133,12 +133,29 @@ export function UploadFlow({
         stage: secret ? "decrypting" : "reading",
       });
 
-      const response = await uploadFile({
-        file,
-        provider,
-        password: secret,
-        attempt: attemptRef.current,
-      });
+      let response: UploadResponse;
+      try {
+        response = await uploadFile({
+          file,
+          provider,
+          password: secret,
+          attempt: attemptRef.current,
+        });
+      } catch {
+        // Without this the flow stays on "processing" forever: an unhandled
+        // rejection leaves the spinner running with no error and no way back,
+        // and the user cannot tell whether their statement was imported.
+        setState({
+          kind: "error",
+          response: {
+            status: "error",
+            code: "internal",
+            message:
+              "We lost the connection while reading your statement. Nothing was imported — try again.",
+          },
+        });
+        return;
+      }
 
       switch (response.status) {
         case "needs_password":
