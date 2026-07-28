@@ -2,23 +2,24 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { readSupabaseEnv } from "@/lib/supabase/env";
-
-/** Routes that require a session. Everything else is public. */
-const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/upload",
-  "/transactions",
-  "/settings",
-];
-
-function isProtected(pathname: string): boolean {
-  return PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-}
+import { isProtectedRoute, loginRedirectPath } from "@/lib/auth/routes";
 
 export default async function proxy(request: NextRequest) {
   const env = readSupabaseEnv();
+
+  /*
+   * Supabase falls back to the project's Site URL when a redirect target is not
+   * on its allow list, and that fallback drops the path — so a magic link can
+   * land on `/?code=...` instead of `/auth/callback?code=...` and the code is
+   * never exchanged. The allow list is configured correctly now; this forwards
+   * any stray code anyway, because a misconfiguration here looks to the user
+   * like a broken login with no error at all.
+   */
+  if (request.nextUrl.pathname === "/" && request.nextUrl.searchParams.has("code")) {
+    const callback = request.nextUrl.clone();
+    callback.pathname = "/auth/callback";
+    return NextResponse.redirect(callback);
+  }
 
   // No Supabase configured (local development against plain Postgres): there
   // are no sessions to refresh and nothing to gate on.
@@ -50,11 +51,12 @@ export default async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && isProtected(request.nextUrl.pathname)) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("next", request.nextUrl.pathname);
-    return NextResponse.redirect(redirectUrl);
+  if (!user && isProtectedRoute(request.nextUrl.pathname)) {
+    const target = loginRedirectPath(
+      request.nextUrl.pathname,
+      request.nextUrl.search,
+    );
+    return NextResponse.redirect(new URL(target, request.nextUrl.origin));
   }
 
   return response;

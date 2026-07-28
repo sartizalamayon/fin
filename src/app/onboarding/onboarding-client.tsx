@@ -57,7 +57,11 @@ export function OnboardingClient({ className }: { className?: string }) {
       });
 
       if (response.status === 401) {
-        setError("Your session expired. Sign in again, then retry.");
+        // /onboarding is gated, so this means the session lapsed mid-form
+        // rather than that the key was wrong — say so, and do not blame the key.
+        setError(
+          "You have been signed out, so the key was not saved. Sign in again and paste it once more.",
+        );
         return;
       }
 

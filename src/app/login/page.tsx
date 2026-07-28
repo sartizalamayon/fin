@@ -10,7 +10,8 @@ export default function LoginPage() {
       <header className="text-center">
         <h1 className="text-2xl font-semibold tracking-tight">fin.</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Sign in with your email. We send a link — no password to remember.
+          Continue with an account you already have, or get a link by email.
+          Either way, there is no password to remember.
         </p>
       </header>
 

@@ -1,16 +1,24 @@
 import type { Metadata } from "next";
 import { GroqKeyCard } from "./groq-key-card";
+import { SignOutCard } from "@/components/auth/sign-out-card";
+import { getCurrentUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Settings — fin.",
 };
 
-export default function SettingsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SettingsPage() {
+  const user = await getCurrentUser();
+
   return (
     <div className="flex flex-col gap-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
       </header>
+
+      <SignOutCard email={user?.email ?? null} />
 
       <GroqKeyCard />
 
