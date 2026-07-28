@@ -52,6 +52,50 @@ There is no server-side LLM key. Each user creates a free key at
 [groq.com](https://groq.com) and pastes it in during onboarding. It is
 encrypted at rest with AES-256-GCM and never returned to the browser.
 
+## Sign-in
+
+Three ways in, no password anywhere: **Continue with Google**, **Continue with
+Outlook**, or an emailed link. A password we store is a password we can leak,
+and this app holds financial records.
+
+The email link works out of the box. The two OAuth buttons need client
+credentials registered with each provider — until then they render but report
+that the provider is not switched on, and point at the email link.
+
+### Enabling Google
+
+1. Google Cloud Console → **APIs & Services → Credentials → Create OAuth client
+   ID** → *Web application*.
+2. Authorised redirect URI:
+   `https://<project-ref>.supabase.co/auth/v1/callback`
+3. Copy the client ID and secret into Supabase → **Authentication → Providers →
+   Google**, and enable it.
+
+### Enabling Outlook
+
+1. Azure Portal → **Microsoft Entra ID → App registrations → New registration**.
+2. Redirect URI (type *Web*):
+   `https://<project-ref>.supabase.co/auth/v1/callback`
+3. **Certificates & secrets → New client secret.**
+4. Put the Application (client) ID and the secret value into Supabase →
+   **Authentication → Providers → Azure**, and enable it.
+
+Supabase calls the Microsoft provider `azure`; the button says Outlook because
+that is the word people recognise.
+
+### Redirect configuration
+
+Supabase falls back to the project's **Site URL** whenever a redirect target is
+not on its allow list — and that fallback *drops the path*, so a sign-in link
+arrives at `/?code=...` instead of `/auth/callback?code=...` and the code is
+never exchanged. The login simply does nothing, with no error. Keep both set:
+
+- **Site URL** — the deployed origin
+- **Redirect URLs** — `<origin>/auth/callback` and `http://localhost:3000/auth/callback`
+
+`NEXT_PUBLIC_AUTH_PROVIDERS` controls which buttons appear (`google,azure` by
+default; set it empty to show none).
+
 ## Getting started
 
 ```bash
